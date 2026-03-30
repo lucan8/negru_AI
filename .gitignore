@@ -8,5 +8,9 @@ xgboost/v*/*/models/
 xgboost/v11
 xgboost/v16
 
+!xgboost/v15/
 !xgboost/v15/models/
 !xgboost/v15/models/**
+!xgboost/v15/*/
+!xgboost/v15/*/models/
+!xgboost/v15/*/models/**
