@@ -3,6 +3,8 @@ import xgboost as xgb
 import matplotlib.pyplot as plt
 import time
 from sklearn.metrics import root_mean_squared_error
+from sklearn.metrics import r2_score
+from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import TimeSeriesSplit
 import pickle
 import os
@@ -30,6 +32,25 @@ class Data:
         self.y_test = y_test
         self.X_all = X_all
         self.y_all = y_all
+
+
+def smpe(actual, pred, eps=1e-8):
+    actual_arr = np.asarray(actual, dtype=float)
+    pred_arr = np.asarray(pred, dtype=float)
+    denom = np.abs(actual_arr) + np.abs(pred_arr) + eps
+    return float(np.mean(2.0 * np.abs(pred_arr - actual_arr) / denom) * 100.0)
+
+
+def save_backtest_predictions(actual, pred, test_index, csv_file):
+    pred_arr = np.asarray(pred, dtype=float)
+    actual_arr = np.asarray(actual, dtype=float)
+    out_df = pd.DataFrame({
+        'datetime': pd.DatetimeIndex(test_index),
+        'actual': actual_arr,
+        'prediction': pred_arr,
+        'error': actual_arr - pred_arr,
+    })
+    out_df.to_csv(csv_file, index=False)
 
 def create_features(data: pd.DataFrame, target: str):
     df_feat = pd.DataFrame()
@@ -418,14 +439,25 @@ def ensemble_pred(models_dir: str, data: Data, test_index):
 
 def plot(actual, pred, test_index, plot_file):
     print(actual.shape, pred.shape)
-    rmse = root_mean_squared_error(actual, pred)
+    actual_arr = np.asarray(actual, dtype=float)
+    pred_arr = np.asarray(pred, dtype=float)
+    rmse = root_mean_squared_error(actual_arr, pred_arr)
+    r2 = r2_score(actual_arr, pred_arr)
+    mae = mean_absolute_error(actual_arr, pred_arr)
+    smpe_value = smpe(actual_arr, pred_arr)
+
     print(f"RMSE: {rmse}")
+    print(f"R2: {r2}")
+    print(f"MAE: {mae}")
+    print(f"SMPE: {smpe_value}")
     fig, axs = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
 
     # Overlay actual and prediction on the same axis to make differences visible.
     axs[0].plot(test_index, actual, label='Actual', alpha=0.9, color='blue', linewidth=1)
     axs[0].plot(test_index, pred, label='Predicted', alpha=0.8, color='orange', linewidth=1)
-    axs[0].set_title(f'Actual vs Predicted (RMSE={rmse:.2f})')
+    axs[0].set_title(
+        f'Actual vs Predicted (RMSE={rmse:.2f} | R2={r2:.4f} | MAE={mae:.2f} | SMPE={smpe_value:.2f}%)'
+    )
     axs[0].set_ylabel('Load')
     axs[0].legend(loc='upper right')
 
@@ -509,6 +541,7 @@ def run_training_pipeline():
         model_file = f"{models_dir}/model"
         plot_file = f"{model_target_root}/plots/prediction_last_year.png"
         forecast_file = f"{model_target_root}/predictions/_next_year_hourly.csv"
+        backtest_file = f"{model_target_root}/predictions/prediction_2017_2018.csv"
 
         os.makedirs(os.path.dirname(plot_file), exist_ok=True)
         os.makedirs(models_dir, exist_ok=True)
@@ -535,6 +568,8 @@ def run_training_pipeline():
         test_pred = recursive_forecast_for_index(best_model, data.y_cv, test_index)
         test_rmse = root_mean_squared_error(data.y_test, test_pred)
         print(f"Recursive last-year RMSE: {test_rmse:.3f}")
+        save_backtest_predictions(data.y_test, test_pred, test_index, backtest_file)
+        print(f"Saved 2017-2018 predictions -> {backtest_file}")
         plot(data.y_test, test_pred, test_index, plot_file)
         print(f"Saved recursive backtest plot -> {plot_file}")
 
