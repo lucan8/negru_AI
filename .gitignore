@@ -1,0 +1,12 @@
+__pycache__
+.venv
+*.xlsm
+*.csv
+xgboost/v[1-5]/
+xgboost/v*/models/
+xgboost/v*/*/models/
+xgboost/v11
+xgboost/v16
+
+!xgboost/v15/models/
+!xgboost/v15/models/**
